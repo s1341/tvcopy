@@ -27,10 +27,10 @@ def iglob(pattern, directory=None, as_tuple=False):
 
 
 def list_all_video_files(directory=None, pattern=None):
-    results = [] 
+    results = []
     if directory:
         for root, dirs, files in os.walk(directory):
-            if ".AppleDouble" in root or ".Trash" in root: 
+            if ".AppleDouble" in root or ".Trash" in root:
                 continue
             for file in files:
                 if file_is_video(file):
@@ -60,7 +60,7 @@ class Show:
 		show.origname = orig_name
         global_shows[normalized_name] = show
         return show
-    
+
     @classmethod
     def normalize_name(cls, name):
         # normalize the name of the show, getting rid of dots,
@@ -103,14 +103,14 @@ class Show:
                 return ep
     def count(self):
         return len(self.get_all_episodes())
-    def get_episodes_after(self, episode):
+    def get_episodes_after(self, episode, inclusive=False):
         episodes = self.get_all_episodes()
         if episode in episodes:
             index = episodes.index(episode)
-            return episodes[index+1:]
+            return episodes[index + (0 if inclusive else 1):]
         print "ERROR: something went wrong gathering episodes for %s after episode %s" % (self.name, episode)
         return []
-        
+
 class Episode:
     file_re = re.compile("(?P<showname>[a-zA-z._ 0-9]+)\.[sS](?P<season>[0-9]+)[eE](?P<episode>[0-9]+).*")
     def __init__(self, path, filename, showname, season, episode):
@@ -120,7 +120,7 @@ class Episode:
 
     def __repr__(self):
         return "%s [%02d:%02d] %s/%s" % (self.show.name, self.season, self.episode, self.path, self.filename)
-    
+
     def _get_sort_sequence(self):
         return self.show.name, self.season, self.episode
     def __eq__(self, other):
@@ -148,7 +148,7 @@ def crawl(path):
     return eps
 
 def get_last_copied(episode_list):
-    showlist = {} 
+    showlist = {}
     for ep in episode_list:
         showname = ep.show.name
         if not showname in showlist or showlist[showname] < ep:
@@ -161,7 +161,6 @@ def get_eps_from_cache(path):
     cache = json.loads(open(path).read())
     for showname, ep_num in cache['last_copied_episodes'].items():
         ep = Show.get_show(showname).get_episode_from_nums(ep_num['season'], ep_num['episode'])
-	print ep
         eps.append(ep)
     return eps
 
@@ -191,17 +190,20 @@ class ShowInfo:
         self.episodes = []
         self.last_copied_epnum = None
         self.last_copied_episode = None
+        self.inclusive = False
 
-    def set_last_copied(self, episode):
+    def set_last_copied(self, episode, inclusive=False):
         ep_num = episode.season, episode.episode
         self.last_copied_epnum = max(self.last_copied_epnum, ep_num) if self.last_copied_epnum else ep_num
         if self.last_copied_epnum == ep_num:
             self.last_copied_episode = episode
+        self.inclusive = inclusive
 
     def gather_required_episodes(self):
-        self.episodes = self.show.get_episodes_after(self.last_copied_episode)
+        print "GATHER:", self.last_copied_episode
+        self.episodes = self.show.get_episodes_after(self.last_copied_episode, self.inclusive)
         return self.episodes
-    
+
     def get_most_recent(self):
         if len(self.episodes):
             return self.episodes[-1]
@@ -220,7 +222,7 @@ class ShowInfo:
                 try:
                     print "[*] copying %s to %s" % (ep.get_path(), outdir)
                     shutil.copy2(ep.get_path(), args.outdir)
-                    self.set_last_copied(ep) 
+                    self.set_last_copied(ep)
                 except Exception, e:
 		    print e
                     # cleanup partial files
@@ -232,18 +234,17 @@ class EpisodeList:
         self.list = []
         self.shows = {}
 
-    def set_last_copied_episodes(self, eps):
+    def set_last_copied_episodes(self, eps, inclusive=False):
         for e in eps:
-	    print; print; print e
             if not e.show.name in self.shows:
                 self.shows[e.show.name] = ShowInfo(e.show)
-            self.shows[e.show.name].set_last_copied(e)
+            self.shows[e.show.name].set_last_copied(e, inclusive)
 
     def gather_required_episodes(self):
         for show in self.shows.values():
             eps = show.gather_required_episodes()
             self.list += eps
-            
+
 
     def has_show(self, name):
         return name in self.shows
@@ -267,8 +268,8 @@ class EpisodeList:
             except:
                 return
 
-                
-        
+
+
 if __name__ == '__main__':
     from pprint import pprint
     import argparse
@@ -285,7 +286,7 @@ if __name__ == '__main__':
     parser.add_argument('--new', "-n", dest='new_shows', action='append', metavar="SHOWNAME",
                        help='add a new show which should be copied despite not being found in the directory crawl or cache-list.')
     parser.add_argument('--specific', "-S", dest='specified', action='append', nargs=3,
-                       help='add a specific show with the specified season and ep numbers. the result will include the specifier') 
+                       help='add a specific show with the specified season and ep numbers. the result will include the specifier')
 
     args = parser.parse_args()
     last_copied_from_files = []
@@ -296,7 +297,7 @@ if __name__ == '__main__':
     # always append the outdir to the crawl dirs,
     # this should save on double copying
     args.dirs.append(args.outdir)
-    
+
     if os.path.exists(args.cache_file):
         print "[-] Reading cache file %s" % args.cache_file
         copylist.set_last_copied_episodes(get_eps_from_cache(args.cache_file))
@@ -316,7 +317,7 @@ if __name__ == '__main__':
             # it's not really new, so we shouldn't include all data
             if not copylist.has_show(Show.get_show(new).name):
                 eps.append(Show.get_show(new).get_episode_from_nums(1, 1))
-        copylist.set_last_copied_episodes(eps)
+        copylist.set_last_copied_episodes(eps, inclusive = True)
 
     if args.specified:
         print "[-] Adding specified shows"
@@ -336,8 +337,8 @@ if __name__ == '__main__':
 
     copylist.copy(args.outdir, args.pretend)
 
-    
-    if not args.pretend:    
+
+    if not args.pretend:
         print "[-] writing cache_file to %s" % args.cache_file
         write_cache(args.cache_file, copylist)
 
