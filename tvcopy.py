@@ -181,7 +181,6 @@ def write_cache(path, copylist):
 	    showobj = cache['last_copied_episodes']
 	else:
 	    showobj = {}
-	cache['last_copied_episodes']['showname'] = {'season': s, 'episode': e }
     open(path,"w").write(json.dumps(cache))
 
 class ShowInfo:
