@@ -153,6 +153,7 @@ class Episode:
 
     @classmethod
     def create(cls, path, filename):
+        print path, filename
         m = Episode.file_re.match(filename)
         if m:
             return Episode(path, filename, *m.groups())
@@ -323,6 +324,8 @@ if __name__ == '__main__':
     parser.add_argument('--specific', "-S", dest='specified', action='append', nargs=3,
                         help=('add a specific show with the specified season and ep'
                               ' numbers. the result will include the specifier'))
+    parser.add_argument('--list', '-L', dest='importlists', action='append',
+                        help=('import episodes from the specified dir listing file'))
 
     args = parser.parse_args()
     last_copied_from_files = []
@@ -332,6 +335,13 @@ if __name__ == '__main__':
     # always append the outdir to the crawl dirs,
     # this should save on double copying
     args.dirs.append(args.outdir)
+
+    if args.importlists:
+        for listfilename in args.importlists:
+            filenames = open(listfilename, 'rb').read().split("\n")
+            for filename in filenames:
+                ep = Episode.create(*filename.rsplit("/", 1))
+                print ep
 
     if os.path.exists(args.cache_file):
         print "[-] Reading cache file %s" % args.cache_file
