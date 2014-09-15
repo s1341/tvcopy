@@ -64,8 +64,8 @@ class Show:
             show = Show(normalized_name, orig_name)
         if show.name == show.origname and show.name != orig_name:
             show.origname = orig_name
-            global_shows[normalized_name] = show
-            return show
+        global_shows[normalized_name] = show
+        return show
 
     @classmethod
     def normalize_name(cls, name):
@@ -153,7 +153,6 @@ class Episode:
 
     @classmethod
     def create(cls, path, filename):
-        print path, filename
         m = Episode.file_re.match(filename)
         if m:
             return Episode(path, filename, *m.groups())
@@ -249,7 +248,9 @@ class ShowInfo:
             if not pretend:
                 try:
                     print "[*] copying %s to %s" % (ep.get_path(), outdir)
-                    shutil.copy2(ep.get_path(), args.outdir)
+                    if not os.path.exists(outdir):
+                        os.mkdir(outdir)
+                    shutil.copy2(ep.get_path(), outdir)
                     self.set_last_copied(ep)
                 except Exception, e:
                     print e
@@ -295,7 +296,8 @@ class EpisodeList:
             try:
                 self.shows[showname].copy(outdir, pretend)
             except:
-                return
+                return 0
+        return 1
 
 
 # TODO: make cache a class
@@ -337,11 +339,15 @@ if __name__ == '__main__':
     args.dirs.append(args.outdir)
 
     if args.importlists:
+        eps = []
         for listfilename in args.importlists:
             filenames = open(listfilename, 'rb').read().split("\n")
             for filename in filenames:
-                ep = Episode.create(*filename.rsplit("/", 1))
-                print ep
+                ep = Episode.create(*os.path.split(filename))
+                if ep:
+                    eps.append(ep)
+        copylist.set_last_copied_episodes(eps)
+
 
     if os.path.exists(args.cache_file):
         print "[-] Reading cache file %s" % args.cache_file
@@ -380,9 +386,7 @@ if __name__ == '__main__':
     print "[-] planning to copy %d files total:" % copylist.count()
     print copylist.display()
 
-    copylist.copy(args.outdir, args.pretend)
-
-    if not args.pretend:
+    if copylist.copy(args.outdir, args.pretend) and not args.pretend:
         print "[-] writing cache_file to %s" % args.cache_file
         write_cache(args.cache_file, copylist)
 
