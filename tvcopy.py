@@ -202,6 +202,9 @@ def write_cache(path, copylist):
         else:
             # assume the worst. We need the whole sequence
             s, e = show.startep
+        cache["last_copied_episodes"][showname] = {}
+        cache["last_copied_episodes"][showname]["season"] = s
+        cache["last_copied_episodes"][showname]["episode"] = e
     open(path, "w").write(json.dumps(cache))
 
 
@@ -250,7 +253,7 @@ class ShowInfo:
                     print "[*] copying %s to %s" % (ep.get_path(), outdir)
                     if not os.path.exists(outdir):
                         os.mkdir(outdir)
-                    shutil.copy2(ep.get_path(), outdir)
+                    shutil.copyfile(ep.get_path(), os.path.join(outdir, ep.filename))
                     self.set_last_copied(ep)
                 except Exception, e:
                     print e
